@@ -1,19 +1,34 @@
-import { Duration, Stack, StackProps } from 'aws-cdk-lib';
-import * as sns from 'aws-cdk-lib/aws-sns';
-import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
-import { Construct } from 'constructs';
-
-export class CdkWorkshopStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+import * as cdk from "aws-cdk-lib";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as apigw from "aws-cdk-lib/aws-apigateway";
+import { HitCounter } from "./hitcounter";
+export class CdkWorkshopStack extends cdk.Stack {
+  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const queue = new sqs.Queue(this, 'CdkWorkshopQueue', {
-      visibilityTimeout: Duration.seconds(300)
+    // defines an aws lambda resource
+    const hello = new lambda.Function(this, "HelloHandler", {
+      runtime: lambda.Runtime.NODEJS_16_X,
+      code: lambda.Code.fromAsset("lambda"), // code loaded from lambda directory
+      handler: "hello.handler", // file is 'hello', function is 'handler'
     });
 
-    const topic = new sns.Topic(this, 'CdkWorkshopTopic');
+    const helloWithCounter = new HitCounter(this, "HelloHitCounter", {
+      downstream: hello,
+    });
 
-    topic.addSubscription(new subs.SqsSubscription(queue));
+    // defines an API Gateway REST API resource backed by our "hello" function.
+    new apigw.LambdaRestApi(this, "Endpoint", {
+      handler: helloWithCounter.handler,
+    });
   }
 }
+
+/*
+The class constructors of both CdkWorkshopStack and lambda.Function (and many other classes in the CDK)
+have the signature (scope, id, props). This is because all of these classes are constructs. 
+Constructs are the basic building block of CDK apps. They represent abstract “cloud components” which can
+be composed together into higher level abstractions via scopes. 
+Scopes can include constructs, which in turn can include other constructs, etc.
+// More info here: https://cdkworkshop.com/20-typescript/30-hello-cdk/200-lambda.html
+*/
